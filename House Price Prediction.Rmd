@@ -1,0 +1,627 @@
+---
+title: "King County House Price Prediction"
+date: '2022-05-19'
+output: html_document
+---
+
+*Group 11*
+
+```
+Gabrielle Felicia Ariyanto - 2540134874
+Natasha Hartanti Winata - 2502039176
+Caroline Angelina Sunarya - 2501995093
+Clarissa Octavia Tjandra - 2540120143
+Agnes Calista - 2501980690
+```
+
+## 1. INTRODUCTION
+
+Source Dataset : 'https://www.kaggle.com/code/burhanykiyakoglu/predicting-house-prices/notebook' 
+
+```
+House Data is a collection of data about house prices in 2015 at King County area of the United States. House prices will be predicted using the linear regression approach.
+```
+
+```{r}
+#Import File 
+#The dataset from Kaggle is uploaded to github for access via the link
+HouseData <- read.csv("https://raw.githubusercontent.com/GabrielleFeliciaA/house_price_data/main/kc_house_data.csv")
+
+head(HouseData)
+```
+
+## 2. Dataset Description
+
+```
+`id`              : (num) house id
+`date`            : (chr) the date the house was sold
+`price`           : (num) house price
+`bedrooms`        : (int) the number of rooms in a house
+`bathrooms`       : (num) the number of bathrooms in a house
+`sqft_living`     : (int) house area
+`sqft_lot`        : (int) land area
+`floors`          : (num) the number of floors in the house
+`waterfront`      : (int) does the house have a view of the water
+`view`            : (int) view rating
+`condition`       : (int) house condition
+`grade`           : (int) overall assessment of the house
+`sqft_above`      : (int) the area of the upper room of the house
+`sqft_basement`   : (int) basement area
+`yr_built`        : (int) year the house was built
+`yr_renovated`    : (int) year the house was renovated
+`zipcode`         : (int) zip code
+`lat`             : (num) latitude coordinates
+`long`            : (num) longitude coordinates
+`sqft_living15`   : (int) the size of the house in 2015 if renovated.
+`sqft_lot15`      : (int) size of land area in 2015 if renovated
+```
+
+```{r}
+#Packages
+library(Hmisc)
+library(dplyr)
+library(ggplot2)
+library(mapview)
+library(caret)
+library(corrplot)
+```
+
+
+## 3. Exploring Dataset
+
+```{r}
+dim(HouseData)
+```
+
+```
+The result above indicated that there are 21613 observations (rows) and 21 variables (columns) of data.
+```
+
+```{r}
+str(HouseData)
+```
+
+```
+There are three data types that were used in this data set, they are num, char, and int. To be specific, there are one (1) variable contained of char data type, six (6) variable contained of num data type, and fourteen (14) variable contained of int data type. The variable that consists of char data type is 'date'. The variables that consist of num data type is 'id', 'price', 'bathrooms', 'floors', 'lat', and 'long'. Other than all of mentioned before, other variables consist of int data type.
+```
+
+```{r}
+summary(HouseData)
+```
+
+```
+The insights gained from the result above are:
+- The maximum price of a house is 7700000 and the minimum price of a house is 75000.
+- The oldest house(s) was/were built in 1900 and the newest house(s) was/were built in 2015.
+- In the 'yr_renovated' variable, the minimum value is 0, the maximum value is 2015, the 1st quartile, median, and 3rd quartile all have the value 0. This may indicate that among all of the houses that were renovated, it is likely that either the houses were all renovated in the year 2015 or not renovated at all. 
+```
+
+```{r}
+describe(HouseData)
+```
+
+```
+The results above showed us:
+- The least count of bedrooms in a house is 0, the greatest count of bedrooms in a house is 33, and the most frequent count of the bedrooms in a house is 3 with the value count 9824 contributing 45.5 percentile of data in the variable.
+- Most houses had 1 or 2 floor levels. 10680 or 49.4 percentile of the houses only had 1 floor level, and 8241 or 38.1 percentile of the house only had 2 floor levels. 
+- The houses with the view rated at 0 were the houses that dominated the housing market, with 90.2 percentile of data contributed in the variable.
+- The houses that were graded at level 3 were the ones dominating in the houses market. 14031 of the houses' condition were graded at level 3, contributing 64.9 percentile of the data in the variable.
+- For the overall assessment of the houses, most house were graded at level 7 and 8. 8981 of the houses were graded at level 7, contributing 41.8 percentile of the data in the variable. 6068 of the houses were graded at level 8, contributing 28.1 percentile of the data in the variable.
+- The summary above the most recent result indicated that the houses either was renovated at 2015 or not renovated at all. Through the most recent result, new insights were gained. There were several houses that were renovated in 1935, 1940, 1945, 1950, 1955, 1960, 1965, 1970, 1975, 1980, 1985, 1990, 1995, 2000, 2005, 2010, 2015, and not renovated at all. There were 20699 house that were not renovated at all, contributing almost 96 percentile of the data in the variable. Other than that, most houses were renovated either in 2005 or 2015. 156 houses were renovated in 2005, and 144 houses were renovated in 2015. Each contributed at least 0.7 percentile of the data in the variable.
+```
+
+```{r}
+colSums(is.na(HouseData))
+```
+
+```
+There are no missing values calculated using the syntax above. 
+```
+
+```{r}
+all(duplicated(HouseData)==TRUE)
+```
+
+```
+The syntax above returned the value FALSE. This indicates that there are no duplicated data in the data set. It can be concluded that the data set being used is free from missing values and duplicated data.
+```
+
+## 4. Check Anomalies
+
+```{r}
+ThreeSigma <- function(x, t = 3){
+
+ mu <- mean(x, na.rm = TRUE)
+ sig <- sd(x, na.rm = TRUE)
+ if (sig == 0){
+  message("All non-missing x-values are identical")
+ }
+ up <- mu + t * sig
+ down <- mu - t * sig
+ out <- list(up = up, down = down)
+ return(out)
+ }
+
+Hampel <- function(x, t = 3){
+
+ mu <- median(x, na.rm = TRUE)
+ sig <- mad(x, na.rm = TRUE)
+ if (sig == 0){
+  message("Hampel identifer implosion: MAD scale estimate is zero")
+ }
+ up <- mu + t * sig
+ down <- mu - t * sig
+ out <- list(up = up, down = down)
+ return(out)
+}
+   
+BoxplotRule<- function(x, t = 1.5){
+
+ xL <- quantile(x, na.rm = TRUE, probs = 0.25, names = FALSE)
+ xU <- quantile(x, na.rm = TRUE, probs = 0.75, names = FALSE)
+ Q <- xU - xL
+ if (Q == 0){
+  message("Boxplot rule implosion: interquartile distance is zero")
+ }
+ up <- xU + t * Q
+ down <- xL - t * Q
+ out <- list(up = up, down = down)
+ return(out)
+}   
+
+ExtractDetails <- function(x, down, up){
+
+ outClass <- rep("N", length(x))
+ indexLo <- which(x < down)
+ indexHi <- which(x > up)
+ outClass[indexLo] <- "L"
+ outClass[indexHi] <- "U"
+ index <- union(indexLo, indexHi)
+ values <- x[index]
+ outClass <- outClass[index]
+ nOut <- length(index)
+ maxNom <- max(x[which(x <= up)])
+ minNom <- min(x[which(x >= down)])
+ outList <- list(nOut = nOut, lowLim = down,
+ upLim = up, minNom = minNom,
+ maxNom = maxNom, index = index,
+ values = values,
+ outClass = outClass)
+ return(outList)
+ }
+```
+
+
+```{r}
+FindOutliers <- function(x, t3 = 3, tH = 3, tb = 1.5){
+ threeLims <- ThreeSigma(x, t = t3)
+ HampLims <- Hampel(x, t = tH)
+ boxLims <- BoxplotRule(x, t = tb)
+
+ n <- length(x)
+ nMiss <- length(which(is.na(x)))
+
+ threeList <- ExtractDetails(x, threeLims$down, threeLims$up)
+ HampList <- ExtractDetails(x, HampLims$down, HampLims$up)
+ boxList <- ExtractDetails(x, boxLims$down, boxLims$up)
+
+ sumFrame <- data.frame(method = "ThreeSigma", n = n,
+ nMiss = nMiss, nOut = threeList$nOut,
+ lowLim = threeList$lowLim,
+ upLim = threeList$upLim,
+ minNom = threeList$minNom,
+ maxNom = threeList$maxNom)
+ upFrame <- data.frame(method = "Hampel", n = n,
+ nMiss = nMiss, nOut = HampList$nOut,
+ lowLim = HampList$lowLim,
+ upLim = HampList$upLim,
+ minNom = HampList$minNom,
+ maxNom = HampList$maxNom)
+ sumFrame <- rbind.data.frame(sumFrame, upFrame)
+ upFrame <- data.frame(method = "BoxplotRule", n = n,
+ nMiss = nMiss, nOut = boxList$nOut,
+ lowLim = boxList$lowLim,
+ upLim = boxList$upLim,
+ minNom = boxList$minNom,
+ maxNom = boxList$maxNom)
+ sumFrame <- rbind.data.frame(sumFrame, upFrame)
+
+ threeFrame <- data.frame(index = threeList$index,
+ values = threeList$values,
+ type = threeList$outClass)
+ HampFrame <- data.frame(index = HampList$index,
+ values = HampList$values,
+ type = HampList$outClass)
+ boxFrame <- data.frame(index = boxList$index,
+ values = boxList$values,
+ type = boxList$outClass)
+ outList <- list(summary = sumFrame, threeSigma = threeFrame,
+ Hampel = HampFrame, boxplotRule = boxFrame)
+ return(outList)
+}
+```
+
+```{r}
+summary_outliers <- FindOutliers(HouseData$price)
+summary_outliers$summary
+```
+
+
+```{r}
+avg <- mean(HouseData$price)
+std <- sd(HouseData$price)
+
+outliers_ts = sum(abs((HouseData$price - avg) > 3 * std))
+
+upper_ts <- avg + 3 * std
+lower_ts <- avg - 3 * std
+outliers_ts <- list(up = upper_ts, down = lower_ts)
+
+plot(HouseData$price,
+     main = "Three Sigma",
+     ylab = "Value",
+     col = 'blue', ylim= c(-1e+6,5e+06))
+
+abline(h = mean(HouseData$price), lty = "dashed", lwd = 1)
+abline(h = upper_ts, lty = "dotted", lwd = 2)
+abline(h = lower_ts, lty = "dotted", lwd = 2)
+
+```
+
+```{r}
+med <- median(HouseData$price)
+sig <- mad(HouseData$price)
+
+data <- HouseData$price
+outliers_h <- sum(abs(data - med) > 3 * sig)
+
+upper_h <- med + 3 * sig
+lower_h <- med - 3 * sig
+outliers_hampel <- list(up = upper_h, down = lower_h)
+
+plot(HouseData$price,
+     main = "Hampel Identifier",
+     ylab = "Value",
+     col = 'blue',ylim= c(-1e+6,5e+06))
+
+abline(h = median(HouseData$price), lty = "dashed", lwd = 1)
+abline(h = upper_h, lty = "dotted", lwd = 2)
+abline(h = lower_h, lty = "dotted", lwd = 2)
+```
+
+```{r}
+out <- boxplot.stats(HouseData$price)$out
+
+boxplot(HouseData$price,
+  ylab = "",
+  main = "House Price Boxplot"
+)
+
+mtext(paste("Outliers: ", paste(length(out), collapse = ", ")))
+
+```
+
+```
+Using the Three Sigma Edit rule, the lower limit of the non-outlier data is -561293.4 with the minNom value is 75000, and the upper limit is 1641470 with the maxNom value is 1640000. As a result, there are 406 data that are considered outliers by this rule. Using the Hample Identifier rule, the lower limit of the non-outlier data is -217170.0 with the minNom value is 75000, and the upper limit is 1117170 with the maxNom value is 1115500. There are 1166 data that are considered outliers. Lastly, using the Boxplot rule, the lower limit of the non-outlier data is -162625.0 with the minNom value is 75000, and the upper limit is 1129575 with the maxNom value is 1127500. There are 1146 data that are considered outliers. The lower limit that seemed to be the most reasonable for the non-outlier data is from the Boxplot rule as the numbers did not stray far away from the minNom value. Compared to all of the upper limit from all of three outlier detector rule, the most reasonable upper limit for the non-outlier data is from the Hample Identifier rule. The upper limit from the Hample rule is the smallest among all of the other rules. The upper limit from Hample rule did not stray far away from the central distribution of the data. 
+```
+
+```
+Using the combination of the lower limit and the upper limit of Three Sigma, Hample rule, and Boxplot rule, there are 406 data points, 1166 data points, and 1146 data points that are considered as outliers respectively. Referencing from the results from the FindOutliers() function and the plot above, the most reliable results for outliers identifier is from the Hample Identifier rule, which identified 1166 data points as outliers.
+```
+
+```{r}
+outlierIndex_table <- which(HouseData$price > 1117170 | HouseData$price < -162625.0)
+slice_data <- slice(HouseData, outlierIndex_table)
+head(slice_data)
+```
+
+```
+Outliers were discovered in the price variable after searching for anomalies in the dataset, but our team opted not to remove them since prices that are out of range might be generated by a variety of factors, such as growing material prices, rising labor prices, inflation, and rising cost of living and there are several additional factors that determine.
+```
+
+## 5. Visualizing Variable Relation and Pattern Discovery
+
+```{r}
+canvas <- layout(matrix(c(1,2,3,4),nrow=2,byrow=TRUE))
+
+plot(HouseData$sqft_living, HouseData$bathrooms,main="sqft_living VS Bathrooms", xlab="Sqft of Living Room",ylab="Bathrooms")
+plot(HouseData$sqft_living, HouseData$sqft_living,main="sqft_living VS sqft_living15",xlab="Sqft of Living Room",ylab="Sqft of Living Room in 2015")
+plot(HouseData$sqft_above, HouseData$sqft_living,main="sqft_above VS sqft_living",xlab="Sqft of the Above",ylab="Sqft of Living Room")
+plot(HouseData$lat, HouseData$bedrooms,main="lat VS bedrooms",xlab="Lat",ylab="Bedrooms")
+```
+
+```
+From the output above :
+- 'sqft_living' and 'bathrooms' seems to be related. So, As the result, the higher the value of 'sqft_living', the higher the number of 'bathrooms', and vice versa.
+- It reflect that 'sqft_living' and 'sqft_living15' variables have perfectly positive relation. So, As the result, the higher the value of 'sqft_living', the higher the value of 'sqft_living15', and vice versa.
+- 'sqft_living' and 'sqft_above' variables are positively related. So, the higher the value of 'sqft_above', the higher the value of 'sqft_living', and vice versa.
+- 'lat' and 'bedrooms' variables seems do not have relation, because it lacks neither ascending nor descending trend.
+```
+
+*PATTERN DISCOVERY*
+
+```{r}
+HousePattern <- HouseData
+HousePattern$view = as.factor(HousePattern$view)
+ggplot(HousePattern, aes(x=view, y=price)) + geom_boxplot() + ggtitle("House Price vs. Rating View")
+```
+
+```
+According to the output above, houses with views rated at 3 and 4 have higher house prices than houses with views at levels 0, 1, or 2.
+```
+
+```{r}
+HousePattern$bedrooms = as.factor(HousePattern$bedrooms)
+ggplot(HousePattern, aes(x=bedrooms, y=price)) + geom_boxplot() + ggtitle("House Price vs. Number of Bedrooms")
+```
+
+```
+Looking at the 2nd quartile of the data, houses with 9 bedrooms held the highest price. However, looking at the overall distribution of the data, houses with 8 bedrooms has the highest price.
+```
+
+```{r}
+HousePattern$bathrooms = as.factor(HousePattern$bathrooms)
+ggplot(HousePattern, aes(x=bathrooms, y=price)) + geom_boxplot() + ggtitle("House Price vs. Number of Bathrooms")
+```
+
+```
+The plot define that House prices below 1,000,000 dollars mostly have less than 3 bathrooms, and least houses have bathrooms count higher than 3, ranged in 3.25 and 3.5.
+```
+
+```{r}
+HousePattern$floors = as.factor(HousePattern$floors)
+ggplot(HousePattern, aes(x=floors, y=price)) + geom_boxplot() + ggtitle("House Price vs. Number of Floors")
+```
+
+```
+The result above shows that a house with a 2.5 floor has the highest price when compared to other floor levels.
+```
+
+```{r}
+HousePattern$waterfront = as.factor(HousePattern$waterfront)
+ggplot(HousePattern, aes(x=waterfront, y=price)) + geom_boxplot()  + ggtitle("House Price vs. Number of Waterfront")
+```
+
+```
+The result above shows that houses with a waterfront demand a higher house price than houses without a waterfront.
+```
+
+```{r}
+HousePattern$condition = as.factor(HousePattern$condition)
+ggplot(HousePattern, aes(x=condition, y=price)) + geom_boxplot() + ggtitle("House Price vs. House Condition Rating")
+```
+
+```
+Houses with conditions at levels 3, 4, and 5 are more expensive than houses with conditions at levels 1 or 2. The houses condition at level 5 is the most expensive.
+```
+
+```{r}
+HousePattern$grade = as.factor(HousePattern$grade)
+ggplot(HousePattern, aes(x=grade, y=price)) + geom_boxplot() + ggtitle("House Price vs. House Grade")
+```
+
+```
+The plot above shows a positive correlation between the house price and the house grade variables. It can be concluded that the higher the grade of a house, the higher the price of the house.
+```
+
+```{r}
+HousePattern$isRenovated <- as.logical(HousePattern$yr_renovated)
+ggplot(HousePattern, aes(x=isRenovated, y=price)) + geom_boxplot() + ggtitle("House Price vs. is Renovated")
+```
+
+```
+Renovated houses are likely to have a higher price compare to Non-Renovated houses.
+```
+
+```{r}
+mapview(HousePattern, xcol = "long", ycol = "lat", zcol = "price", crs = 4269, grid = FALSE)
+```
+
+```
+The houses' price increase from South to North along the latitude and shows little variation along the longitude, from West to East.
+
+```
+
+_SUMMARY EXPLANATION_
+```
+Through Data Visualization and Pattern Discovery, we gathered the following information about the data : 
+
+1. Houses with views rated at 3 and 4 have higher house prices than houses with views at levels 0, 1, or 2.
+
+2. Looking at the 2nd quartile of the data, houses with 9 bedrooms held the highest price. However, looking at the overall distribution of the data, houses with 8 bedrooms has the highest price.
+
+3. House prices below 1,000,000 dollars mostly have less than 3 bathrooms, and least houses have bathrooms count higher than 3, ranged in 3.25 and 3.5.
+
+4. House with a 2.5 floor has the highest price when compared to other floor levels.
+
+5. Houses with a waterfront demand a higher house price than houses without a waterfront.
+
+6. Houses with conditions at levels 3, 4, and 5 are more expensive than houses with conditions at levels 1 or 2. The houses condition at level 5 is the most expensive.
+
+7. The higher the grade of a house, the higher the price of the house.
+
+8. Renovated houses are likely to have a higher price compare to Non-Renovated houses.
+
+9. The houses' price increase from South to North along the latitude and shows little variation along the longitude, from West to East.
+```
+
+## 6. Check Correlation
+
+```{r}
+House_num = HouseData[c("bedrooms", "bathrooms", "sqft_living", "sqft_lot", "floors", "waterfront", "view", "condition", "grade", "sqft_above", "sqft_basement", "yr_built", "yr_renovated", "zipcode", "lat", "long", "sqft_living15", "sqft_lot15", "price")]
+
+rcorr(as.matrix(House_num))
+```
+
+```
+Threshold = 0.4
+
+- As the threshold was set to 0.4, so the correlation below 0.4 has a weak relationship with the dependent value that is 'price'. 
+
+- Because of the weak correlation between independent and dependent variables, the variables to be drop are as the followings: 'long','yr_built', 'zipcode', 'sqft_lot15', 'sqft_lot','yr_renovated','floors','condition', 'sqft_basement', and 'bedrooms'. 
+
+- Because of the strong correlation between independent and independent variables, the variables to be drop is 'sqft_above'.
+
+- Also, the variables 'waterfront'and 'lat' were kept because our team consider that :
+'waterfront' : Houses with a waterfront generally have a higher price. So we opted to maintain the 'waterfront' variable since we assume the existence or absence of a waterfront influences the price of a house.
+'lat' : The house price in a strategic latitude will affect the house price too.
+```
+
+```{r}
+#Remove Variable step by step
+House_num$long <- NULL
+House_num$yr_built <- NULL
+House_num$zipcode <- NULL
+House_num$sqft_lot15 <- NULL
+House_num$sqft_lot <- NULL
+House_num$yr_renovated <- NULL
+House_num$floors <- NULL
+House_num$condition <- NULL
+House_num$sqft_basement <- NULL
+House_num$bedrooms <- NULL
+House_num$sqft_above <- NULL
+
+rcorr(as.matrix(House_num))
+```
+
+```{r}
+corrplot(cor(House_num),type='lower',tl.col='black',tl.srt=45,col=COL2('BrBG'))
+```
+
+```
+By deleting those variables with weak correlation with the dependent variable which is price, above is the result of each correlation between dependent and independent variables. 
+```
+
+## 7. Check Linearity
+
+```{r}
+plot(House_num)
+```
+
+```
+From this plot of linearity, it is shown that 'sqft_living' has a close to linearity relationship with 'sqft_living15' and 'price'. Most of the numerical independent variables have a linearity relationship with the dependent variable.
+```
+
+## 8. Check Normality
+
+```{r}
+hist.data.frame(House_num)
+```
+
+```
+None of these have a bell-shaped curve but some of them are closed to having a bell-shaped curve such as 'sqft_living', and 'sqft_living15' but it is skewed to the left.
+```
+
+## 9. Modelling
+
+```{r}
+model1 = lm(price~., data = House_num)
+summary(model1)
+plot(model1, which = 1)
+```
+
+```
+The output of Model 1 shows that the F-statistic is 5834, residual standard error is 216000 and adjusted R-squared is 0.6539.
+```
+
+```{r}
+model2 <- lm(log(price) ~ bathrooms + sqft_living  + view + lat  + waterfront  + grade, data = House_num)
+summary(model2)
+plot(model2, which = 1)
+```
+
+```
+Another test was conducted, which was the model2. The results were satisfactory, 0.7283 as the gained adjusted R-square value,0.2746 as the gained residual standard error,  and 9654 as the gained F-statistic value. This model is better than previous models. However, bathrooms variable only has 2 stars of signif. codes, so we decided to make another model below without bathrooms.
+```
+
+```{r}
+model3 <- lm(log(price) ~ sqft_living  + view + lat  + waterfront  + grade, data = House_num)
+summary(model3)
+plot(model3, which = 1)
+```
+
+```
+In the newest model, the variables that were fit the dependent variables were 'sqft_living', 'view', 'lat', 'waterfront' and 'grade'. From the summary of model3, it can be seen that model3 has 0.2746 residual standard error value that seems small enough, 0.7282 Adjusted R-squared value that seems high enough, 11580 F-statistic value that seems high enough, and all of the predictor has highly significant p values (<2e-16). This model is better than the previous model. Hence, it was decided to use model3 as the final model.
+
+The best model, model3, is conducting linear regression for house price using the 'sqft_living', 'view', 'lat', 'waterfront' and 'grade' variables. The linear regression model was trained with log transformed house price.
+```
+
+```
+The equation obtained from the final model is 
+  log(price) = -5.932e+01 + sqft_living*(2.163e-04) + view*(8.791e-02) + lat(1.488e+00) + waterfront*(3.772e-01) + grade*(1.497e-01)
+```
+
+## 10. Create Training and Testing Set and Check Accuration
+
+```{r}
+set.seed(1)
+training_index = createDataPartition(House_num$price, p = 0.8, list = FALSE)
+# p = 0.8 --> 80% of the records in the dataset divided to training set and 20% of the records to testing set.
+testing_set = House_num[-training_index,]
+trainingset = House_num[training_index,]
+
+# The testing set will be used to check the accuracy of the final model
+testing_set$Predicted <- predict(model3, testing_set)
+Price <- testing_set$price
+Predicted <- testing_set$Predicted
+Residual <- Price - Predicted
+
+actual_prediction <- data.frame(Price, Predicted, Residual)
+# checking accuracy
+cor(actual_prediction)
+```
+
+```
+Evaluation of the accuracy of our final model, model3, was conducted and it is shown that our final model has the accuracy at least 79,2%.
+```
+
+## 11. Check Residual Normality
+
+```{r}
+#check residual bell shaped or not 
+hist(rstudent(model3), col = "thistle")
+```
+
+```
+From the results above, it is shown that the accuracy of the model3 is quite high, standing in 79,2% of accuracy. From the histogram above, we can see that the residuals are fairly normal distributed, although it has a little skew, but not too dramatic. Our team concluded that the model was good.
+```
+
+## 12. Plot Final Model
+
+```{r}
+predict_price <- predict(model3, testing_set)
+linear_model <- lm(testing_set$price ~ exp(predict_price))
+plot(exp(predict_price), testing_set$price, xlab="Predicted Price", ylab="Actual Price")
+abline(linear_model)
+```
+
+```
+The x-axis and y-axis displays the predicted prices and the actual prices from the dataset respectively. The estimated regression line is displayed as a diagonal line in the middle of the plot. Since most of data points lies fairly close to the estimated regression line, this tells us that the regression model does a pretty good job of fitting the data.
+```
+
+```{r}
+par(mfrow=c(2,2))
+plot(model3)
+```
+```
+From these 4 plots, it is shown in the 'Normal Q-Q' plot that the majority of the data points lie on the line, meaning that the distribution of residuals in our final model is normally distributed. From the 'Scale-Location plot', same as the 'Residuals vs Fitted plot', there is no visible pattern which is a good sign.
+```
+
+```
+Based on the 'Residuals vs Fitted' plot, there are barely any curve on the line, which shows that there are no visible pattern in the plot.
+From the qqplot, we can see that the majority of data points lie on the line, meaning that the distribution of residuals in our final model is normally distributed.
+From the 'Residuals vs Leverage' plot, there are no points that fall outside of the upper right and lower left dashed line. This means there are no influential points in the regression model.
+So, our team decided that we will deploy the model because the regression model is a very good fit for the data, and that it is perfectly fine to deploy the model.
+```
+
+*CONCLUSION*
+
+```
+- Every house increase in Square feet of living will increase the predicted price.
+- The price of a house also determined by the view that the house possesses. Especially houses with views rated at 3 and 4 have higher house prices than houses with views at levels 0, 1, or 2.
+- The higher the grade of a house, the higher the price of the house.
+- Houses with a waterfront demand a higher house price than houses without a waterfront.
+- The houses' price increases from South to North along the latitude.
+
+However, it is important to note that the data for this resport was collected several years ago. In the years since, it would be interesting to examine how this factor affects house pricing in King County, USA today.
+```
